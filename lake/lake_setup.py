@@ -23,6 +23,7 @@ failure_image_download_list = []
 file_total = 0
 total = 0
 downloadImage = True
+root_path = ""
 
 
 # from lxml import etree
@@ -31,7 +32,8 @@ def load_meta_json(meta_json):
     解析meta.json中标注的文件关系
     :return:
     """
-    fp = open(meta_json, 'r+', encoding='utf-8')
+    full_path = "/".join([meta_json, "$meta.json"])
+    fp = open(full_path, 'r+', encoding='utf-8')
     json_obj = json.load(fp)
     meta = json_obj['meta']
     # print(meta)
@@ -43,7 +45,8 @@ def load_meta_json(meta_json):
     #     yaml_fp.flush()
     books = yaml.load(book_Yml, yaml.Loader)
     for book in books:
-        id_and_book[book['uuid']] = book
+        if book.get('uuid'):
+            id_and_book[book['uuid']] = book
         if book['type'] == 'META':
             continue
         if book['parent_uuid'] == '':
@@ -82,7 +85,7 @@ def create_tree_dir(parent_path, book):
     global failure_image_download_list
     all_file_count += 1
     if file_url != '':
-        ltm = LakeToMd("data/{}.json".format(file_url), target="/".join([parent_path, name]))
+        ltm = LakeToMd("{}/{}.json".format(root_path, file_url), target="/".join([parent_path, name]))
         ltm.to_md()
         failure_image_download_list += ltm.image_download_failure
         file_count += 1
@@ -138,6 +141,8 @@ def convert_to_md(file_path):
 
 
 def start_convert(meta, output, downloadImageOfIn):
+    global root_path
+    root_path = meta
     load_meta_json(meta)
     global downloadImage
     downloadImage = downloadImageOfIn
