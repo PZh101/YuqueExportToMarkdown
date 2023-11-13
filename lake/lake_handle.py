@@ -40,6 +40,9 @@ class MyContext:
         r = "[{}]{}".format(name, imageSrc)
         self.failure_images.append(r)
 
+    def find_file_path(self, fileUid):
+        return fileUid
+
 
 def eventual_tag(tag: Tag) -> bool:
     return len(tag.contents) == 0 or (len(tag.contents) == 1 and isinstance(tag.contents[0], NavigableString))
@@ -146,29 +149,40 @@ class MyParser:
         if name == 'codeblock':
             mode = dataJson.get('mode')
             code = dataJson.get('code')
-            name = dataJson.get('name')
+            cardName = dataJson.get('name')
             if not mode:
                 mode = 'plain'
-            if not name:
-                name = ''
-            f_res = "{0}\n```{1}\n{2}\n```\n".format(name, mode, code)
+            if not cardName:
+                cardName = ''
+            f_res = "{0}\n```{1}\n{2}\n```\n".format(cardName, mode, code)
             return f_res
         elif name == 'image':
-            name = dataJson.get('name')
-            name, relativeImagePath = self.download_image(context1, dataJson, name)
-            return "![{}]({})\n".format(name, "./" + relativeImagePath)
+            cardName = dataJson.get('name')
+            cardName, relativeImagePath = self.download_resource(context1, dataJson, cardName)
+            return "![{}]({})\n".format(cardName, "./" + relativeImagePath)
         elif name == 'hr':
             return "\n---\n"
         elif name == 'label':
             return dataJson['label']
         elif name == 'math':
             laTex = dataJson['code']
-            name, relativeImagePath = self.download_image(context1, dataJson, '数学公式')
-            return laTex + '\n' + "![{}]({})\n".format(name, "./" + relativeImagePath)
+            cardName, relativeImagePath = self.download_resource(context1, dataJson, '数学公式')
+            return laTex + '\n' + "![{}]({})\n".format(cardName, "./" + relativeImagePath)
+        elif name == 'file':
+            cardName = dataJson.get('name')
+            cardName, relativeImagePath = self.download_resource(context1, dataJson, cardName)
+            return "![{}]({})\n".format(cardName, "./" + relativeImagePath)
+        elif name == 'yuque':
+            src = dataJson.get('src')
+            fileUid = src.split("/")[-1]
+            title = dataJson.get("detail").get("title")
+            path = context1.find_file_path(fileUid)
+            return "[{}]({})".format(title, path)
+
         else:
             return "\n"
 
-    def download_image(self, context1, dataJson, name):
+    def download_resource(self, context1, dataJson, name):
         """
         下载图片
         :param context1:
@@ -176,11 +190,11 @@ class MyParser:
         :param name:
         :return:
         """
-        imageSrc = dataJson['src']
-        imageName = imageSrc.split("/")[-1]
-        fullImageName = "/".join([context1.image_target, context1.filename, imageName])
+        src = dataJson['src']
+        resourceName = src.split("/")[-1]
+        fullImageName = "/".join([context1.image_target, context1.filename, resourceName])
         fullImagePath = "/".join([context1.image_target, context1.filename])
-        relativeImagePath = "/".join([context1.filename, imageName])
+        relativeImagePath = "/".join([context1.filename, resourceName])
         if not name:
             name = fullImageName
         if context1.filename != '':
@@ -189,17 +203,17 @@ class MyParser:
             try:
                 if context1.downloadImage:
                     time.sleep(0.5)
-                    resp = requests.get(imageSrc)
+                    resp = requests.get(src)
                     if resp.status_code != 200:
-                        raise Exception("失败链接：{},响应码:{}".format(imageSrc, resp.status_code))
+                        raise Exception("失败链接：{},响应码:{}".format(src, resp.status_code))
                     with open(fullImageName, 'wb') as imageFp:
                         imageFp.write(resp.content)
                         imageFp.flush()
             except Exception as ex:
                 # ex.with_traceback()
-                context1.append_failure(name, imageSrc)
+                context1.append_failure(name, src)
                 print("{0}下载失败".format(fullImageName))
-                name = "图片下载失败"
+                name = "下载失败"
                 print(ex)
         return name, relativeImagePath
 
