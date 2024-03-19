@@ -29,5 +29,5 @@ python startup.py -i meta.json路径 -o 输出md文档路径
 
 feature:
 - [x] 支持命令行转换文件
-- [] 支持直接读取lakebook格式的文件
-- [] 提供可视化操作
+- [ ] 支持直接读取lakebook格式的文件
+- [ ] 提供可视化操作
