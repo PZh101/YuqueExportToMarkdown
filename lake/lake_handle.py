@@ -223,15 +223,15 @@ class MyParser:
                     resp = requests.get(src)
                     if resp.status_code != 200:
                         raise Exception("失败链接：{},响应码:{}".format(src, resp.status_code))
+                    full_image_name = remove_invalid_characters(full_image_name)
                     with open(full_image_name, 'wb') as imageFp:
                         imageFp.write(resp.content)
                         imageFp.flush()
             except Exception as ex:
                 # ex.with_traceback()
                 context1.append_failure(name, src)
-                print("{0}下载失败".format(full_image_name))
+                print("{0}下载失败".format(src))
                 name = "下载失败"
-                print(ex)
         return name, relative_image_path
 
     def handle_span(self, tag, context1: MyContext):

@@ -8,7 +8,7 @@ import json
 
 import yaml
 import os
-
+import shutil
 from lake.lake_handle import MyParser, MyContext, remove_invalid_characters
 from lake.lake_reader import unpack_lake_book_file
 from lake.failure_result_parser import parse_failure_result
@@ -93,7 +93,7 @@ def create_tree_dir(global_context, parent_path, book):
         global_context.file_count += 1
         # print("\r", end="")
         # i = (file_count // file_total) * 100
-        print("\rprocess progress: {}/{}/{}: ".format(global_context.file_count, global_context.all_file_count,
+        print("\rprocess progress: {}/{}/{}. ".format(global_context.file_count, global_context.all_file_count,
                                                       global_context.file_total), end="")
         # sys.stdout.flush()
         # time.sleep(0.05)
@@ -141,7 +141,7 @@ def convert_to_md(global_context, file_path):
     for root_book in global_context.root_books:
         title = root_book['title']
         create_tree_dir(global_context, "/".join([output_path, title]), root_book)
-    print("转换完成")
+    print(">>> markdown 转换完成")
     os.system("explorer " + output_path)
 
 
@@ -150,22 +150,30 @@ def start_convert(meta, lake_book, output, download_image_of_in):
     temp_dir = "temp"
     if lake_book:
         global_context.root_path = unpack_lake_book_file(lake_book, temp_dir)
+        print(">>> lake文件抽取完成")
     else:
         global_context.root_path = meta
     if not global_context.root_path:
         print("参数校验失败！-i或者-l二者必须有一个")
         return
-    load_meta_json(global_context)
-    global_context.download_image = download_image_of_in
-    abspath = os.path.abspath(output)
-    convert_to_md(global_context, abspath)
-    print("共导出%s个文件" % global_context.file_count)
+    try:
+        load_meta_json(global_context)
+        print(">>> meta json解析完成")
+        global_context.download_image = download_image_of_in
+        abspath = os.path.abspath(output)
+        print(">>> 开始进行markdown转换")
+        convert_to_md(global_context, abspath)
+        print("共导出%s个文件" % global_context.file_count)
 
-    print("图片下载错误列表:")
-    print(global_context.failure_image_download_list)
-    parse_failure_result(global_context.failure_image_download_list)
-    if os.path.exists(temp_dir):
-        os.rmdir(temp_dir)
+        print("图片下载错误列表:")
+        print(global_context.failure_image_download_list)
+        parse_failure_result(global_context.failure_image_download_list)
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+    except Exception as e:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        print(e)
 # """
 # 已经完成到根据meta生成目录了
 # """
