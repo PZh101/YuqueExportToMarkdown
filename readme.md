@@ -31,6 +31,11 @@ python startup.py -i meta.json路径 -o 输出md文档路径
 python startup.py -l your.lakebook路径 -o 输出md文档路径
 ```
 
+打包
+```shell
+Pyinstaller -F -w -i image/asrgu-k3t3q-001.ico -n YuqueExportToMarkdown startup.py
+```
+
 feature:
 - [x] 支持命令行转换文件
 - [x] 支持直接读取lakebook格式的文件
