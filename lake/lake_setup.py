@@ -5,71 +5,74 @@
 @File ：lake_setup.py
 """
 import json
+
 import yaml
 import os
 
-from lake.lake_handle import MyParser, MyContext
+from lake.lake_handle import MyParser, MyContext, remove_invalid_characters
+from lake.lake_reader import unpack_lake_book_file
 from lake.failure_result_parser import parse_failure_result
 
-# parent_id和book
-parent_id_and_child: dict = {}
-# 将id和book映射起来
-id_and_book = {}
-# 存放根目录的book
-root_books = []
-file_count = 0
-all_file_count = 0
-failure_image_download_list = []
-file_total = 0
-total = 0
-downloadImage = True
-root_path = ""
+
+class GlobalContext:
+    # parent_id和book
+    parent_id_and_child: dict = {}
+    # 将id和book映射起来
+    id_and_book = {}
+    # 存放根目录的book
+    root_books = []
+    file_count = 0
+    all_file_count = 0
+    failure_image_download_list = []
+    file_total = 0
+    total = 0
+    download_image = True
+    root_path = ""
 
 
 # from lxml import etree
-def load_meta_json(meta_json):
+def load_meta_json(global_context: GlobalContext):
     """
     解析meta.json中标注的文件关系
     :return:
     """
-    full_path = "/".join([meta_json, "$meta.json"])
+    full_path = "/".join([global_context.root_path, "$meta.json"])
     fp = open(full_path, 'r+', encoding='utf-8')
     json_obj = json.load(fp)
     meta = json_obj['meta']
     # print(meta)
     meta_obj = json.loads(meta)
-    book_Yml = meta_obj['book']['tocYml']
-    # print(book_Yml)
+    book_yml = meta_obj['book']['tocYml']
+    # print(book_yml)
     # with open('meta_book_yml.yaml', 'w+', encoding='utf-8') as yaml_fp:
-    #     yaml_fp.write(book_Yml)
+    #     yaml_fp.write(book_yml)
     #     yaml_fp.flush()
-    books = yaml.load(book_Yml, yaml.Loader)
+    books = yaml.load(book_yml, yaml.Loader)
     for book in books:
         if book.get('uuid'):
-            id_and_book[book['uuid']] = book
+            global_context.id_and_book[book['uuid']] = book
         if book['type'] == 'META':
             continue
         if book['parent_uuid'] == '':
-            root_books.append(book)
+            global_context.root_books.append(book)
             continue
         parent_uuid = book['parent_uuid']
-        if parent_id_and_child.get(parent_uuid):
-            parent_id_and_child[parent_uuid].append(book)
+        if global_context.parent_id_and_child.get(parent_uuid):
+            global_context.parent_id_and_child[parent_uuid].append(book)
         else:
-            parent_id_and_child[parent_uuid] = []
-            parent_id_and_child[parent_uuid].append(book)
+            global_context.parent_id_and_child[parent_uuid] = []
+            global_context.parent_id_and_child[parent_uuid].append(book)
     # print(books)
-    global file_total
-    global total
-    file_total = len(id_and_book)
-    total = len(id_and_book)
+    global_context.file_total = len(global_context.id_and_book)
+    global_context.total = len(global_context.id_and_book)
 
 
-def create_tree_dir(parent_path, book):
+def create_tree_dir(global_context, parent_path, book):
     """
     根据解析出的关系创建文档的目录树
     :param parent_path: 输出目录的根路径
     :param book: 当前book对象
+    :param global_context 上下文
     :return:
     """
     if book is None:
@@ -78,20 +81,20 @@ def create_tree_dir(parent_path, book):
     name = book['title']
     file_url = book['url']
     if not os.path.exists(parent_path):
-        os.makedirs(parent_path)
-    book_children = parent_id_and_child.get(uuid)
-    global file_count
-    global all_file_count
-    global failure_image_download_list
-    all_file_count += 1
+        parent_path = parent_path.replace("/", os.path.sep)
+        parent_path = remove_invalid_characters(parent_path)
+        os.makedirs(parent_path, exist_ok=True)
+    book_children = global_context.parent_id_and_child.get(uuid)
+    global_context.all_file_count += 1
     if file_url != '':
-        ltm = LakeToMd("{}/{}.json".format(root_path, file_url), target="/".join([parent_path, name]))
-        ltm.to_md()
-        failure_image_download_list += ltm.image_download_failure
-        file_count += 1
+        ltm = LakeToMd("{}/{}.json".format(global_context.root_path, file_url), target="/".join([parent_path, name]))
+        ltm.to_md(global_context)
+        global_context.failure_image_download_list += ltm.image_download_failure
+        global_context.file_count += 1
         # print("\r", end="")
         # i = (file_count // file_total) * 100
-        print("\rprocess progress: {}/{}/{}: ".format(file_count, all_file_count, file_total), end="")
+        print("\rprocess progress: {}/{}/{}: ".format(global_context.file_count, global_context.all_file_count,
+                                                      global_context.file_total), end="")
         # sys.stdout.flush()
         # time.sleep(0.05)
     if not book_children:
@@ -99,7 +102,7 @@ def create_tree_dir(parent_path, book):
     for child in book_children:
         seg = [x for x in parent_path.split("/")]
         seg.append(child['title'])
-        create_tree_dir("/".join(seg), child)
+        create_tree_dir(global_context, "/".join(seg), child)
 
 
 class LakeToMd:
@@ -113,47 +116,56 @@ class LakeToMd:
 
     def __body_html(self):
         fp = open(file=self.filename, mode='r+', encoding='utf-8')
-        fileJson = json.load(fp)
-        body_html = fileJson["doc"]['body_draft_asl']
+        file_json = json.load(fp)
+        body_html = file_json["doc"]['body_draft_asl']
         fp.close()
         self.body_html = body_html
 
-    def to_md(self):
+    def to_md(self, global_context):
         mp = MyParser(self.body_html)
         name = self.target.split("/")[-1]
-        lastIndex = self.target.rindex("/")
-        shortTarget = self.target[:lastIndex]
-        context = MyContext(filename=name, imageTarget=shortTarget, downloadImage=downloadImage)
+        last_index = self.target.rindex("/")
+        short_target = self.target[:last_index]
+        context = MyContext(filename=name, image_target=short_target, download_image=global_context.download_image)
         res = mp.handle_descent(mp.soup, context)
         self.image_download_failure += context.failure_images
-        with open(self.target + ".md", 'w', encoding='utf-8') as fp:
+        self.target = remove_invalid_characters(self.target)
+        md_path = self.target.replace("/", os.path.sep)
+        with open(md_path + ".md", 'w+', encoding='utf-8') as fp:
             fp.writelines(res)
             fp.flush()
 
 
-def convert_to_md(file_path):
+def convert_to_md(global_context, file_path):
     output_path = file_path
-    for root_book in root_books:
+    for root_book in global_context.root_books:
         title = root_book['title']
-        create_tree_dir("/".join([output_path, title]), root_book)
+        create_tree_dir(global_context, "/".join([output_path, title]), root_book)
     print("转换完成")
     os.system("explorer " + output_path)
 
 
-def start_convert(meta, output, downloadImageOfIn):
-    global root_path
-    root_path = meta
-    load_meta_json(meta)
-    global downloadImage
-    downloadImage = downloadImageOfIn
+def start_convert(meta, lake_book, output, download_image_of_in):
+    global_context = GlobalContext()
+    temp_dir = "temp"
+    if lake_book:
+        global_context.root_path = unpack_lake_book_file(lake_book, temp_dir)
+    else:
+        global_context.root_path = meta
+    if not global_context.root_path:
+        print("参数校验失败！-i或者-l二者必须有一个")
+        return
+    load_meta_json(global_context)
+    global_context.download_image = download_image_of_in
     abspath = os.path.abspath(output)
-    convert_to_md(abspath)
-    print("共导出%s个文件" % file_count)
+    convert_to_md(global_context, abspath)
+    print("共导出%s个文件" % global_context.file_count)
 
     print("图片下载错误列表:")
-    print(failure_image_download_list)
-    parse_failure_result(failure_image_download_list)
-
+    print(global_context.failure_image_download_list)
+    parse_failure_result(global_context.failure_image_download_list)
+    if os.path.exists(temp_dir):
+        os.rmdir(temp_dir)
 # """
 # 已经完成到根据meta生成目录了
 # """

@@ -12,6 +12,7 @@ import queue
 import os
 import requests
 import time
+import re
 
 html_text = """
 <div>
@@ -24,24 +25,39 @@ html_text = """
 """
 
 
+def remove_invalid_characters(filename):
+    p = r"^[a-zA-Z]:"
+    prefix = ""
+    h = re.match(p, filename)
+    if h:
+        regs = h.regs
+        prefix = filename[regs[0][0]:regs[0][1]]
+        filename = filename.replace(prefix, "")
+    # 定义要移除的字符列表
+    invalid_chars = r'[<>:"|?*]'
+    # 使用正则表达式替换不支持的字符为空字符串
+    cleaned_filename = re.sub(invalid_chars, "", filename)
+    return prefix + cleaned_filename
+
+
 class MyContext:
-    def __init__(self, filename="xxx", downloadImage=True, imageTarget=""):
+    def __init__(self, filename="xxx", download_image=True, image_target=""):
         self.template_queue = queue.Queue()
         self.result = ""
         # 存放图片的目录
         self.filename = filename + ".assert"
-        self.image_target = imageTarget
+        self.image_target = image_target
         # 下载失败的图片
         self.failure_images = []
         # 下载图片
-        self.downloadImage = downloadImage
+        self.download_image = download_image
 
-    def append_failure(self, name, imageSrc):
-        r = "[{}]{}".format(name, imageSrc)
+    def append_failure(self, name, image_src):
+        r = "[{}]{}".format(name, image_src)
         self.failure_images.append(r)
 
-    def find_file_path(self, fileUid):
-        return fileUid
+    def find_file_path(self, file_uid):
+        return file_uid
 
 
 def eventual_tag(tag: Tag) -> bool:
@@ -145,77 +161,78 @@ class MyParser:
         value = tag.attrs.get("value")
         value = value[5:]
         data = urllib.parse.unquote(value, encoding='utf-8')
-        dataJson = json.loads(data)
+        data_json = json.loads(data)
         if name == 'codeblock':
-            mode = dataJson.get('mode')
-            code = dataJson.get('code')
-            cardName = dataJson.get('name')
+            mode = data_json.get('mode')
+            code = data_json.get('code')
+            card_name = data_json.get('name')
             if not mode:
                 mode = 'plain'
-            if not cardName:
-                cardName = ''
-            f_res = "{0}\n```{1}\n{2}\n```\n".format(cardName, mode, code)
+            if not card_name:
+                card_name = ''
+            f_res = "{0}\n```{1}\n{2}\n```\n".format(card_name, mode, code)
             return f_res
         elif name == 'image':
-            cardName = dataJson.get('name')
-            cardName, relativeImagePath = self.download_resource(context1, dataJson, cardName)
-            return "![{}]({})\n".format(cardName, "./" + relativeImagePath)
+            card_name = data_json.get('name')
+            card_name, relative_image_path = self.download_resource(context1, data_json, card_name)
+            return "![{}]({})\n".format(card_name, "./" + relative_image_path)
         elif name == 'hr':
             return "\n---\n"
         elif name == 'label':
-            return dataJson['label']
+            return data_json['label']
         elif name == 'math':
-            laTex = dataJson['code']
-            cardName, relativeImagePath = self.download_resource(context1, dataJson, '数学公式')
-            return laTex + '\n' + "![{}]({})\n".format(cardName, "./" + relativeImagePath)
+            la_tex = data_json['code']
+            card_name, relative_image_path = self.download_resource(context1, data_json, '数学公式')
+            return la_tex + '\n' + "![{}]({})\n".format(card_name, "./" + relative_image_path)
         elif name == 'file':
-            cardName = dataJson.get('name')
-            cardName, relativeImagePath = self.download_resource(context1, dataJson, cardName)
-            return "![{}]({})\n".format(cardName, "./" + relativeImagePath)
+            card_name = data_json.get('name')
+            card_name, relative_image_path = self.download_resource(context1, data_json, card_name)
+            return "![{}]({})\n".format(card_name, "./" + relative_image_path)
         elif name == 'yuque':
-            src = dataJson.get('src')
-            fileUid = src.split("/")[-1]
-            title = dataJson.get("detail").get("title")
-            path = context1.find_file_path(fileUid)
+            src = data_json.get('src')
+            file_uid = src.split("/")[-1]
+            title = data_json.get("detail").get("title")
+            path = context1.find_file_path(file_uid)
             return "[{}]({})".format(title, path)
 
         else:
             return "\n"
 
-    def download_resource(self, context1, dataJson, name):
+    def download_resource(self, context1, data_json, name):
         """
         下载图片
         :param context1:
-        :param dataJson:
+        :param data_json:
         :param name:
         :return:
         """
-        src = dataJson['src']
-        resourceName = src.split("/")[-1]
-        fullImageName = "/".join([context1.image_target, context1.filename, resourceName])
-        fullImagePath = "/".join([context1.image_target, context1.filename])
-        relativeImagePath = "/".join([context1.filename, resourceName])
+        src = data_json['src']
+        resource_name = src.split("/")[-1]
+        full_image_name = "/".join([context1.image_target, context1.filename, resource_name])
+        full_image_path = "/".join([context1.image_target, context1.filename])
+        relative_image_path = "/".join([context1.filename, resource_name])
         if not name:
-            name = fullImageName
+            name = full_image_name
         if context1.filename != '':
-            if not os.path.exists(fullImagePath):
-                os.makedirs(fullImagePath)
+            if not os.path.exists(full_image_path):
+                full_image_path = remove_invalid_characters(full_image_path)
+                os.makedirs(full_image_path, exist_ok=True)
             try:
-                if context1.downloadImage:
+                if context1.download_image:
                     time.sleep(0.5)
                     resp = requests.get(src)
                     if resp.status_code != 200:
                         raise Exception("失败链接：{},响应码:{}".format(src, resp.status_code))
-                    with open(fullImageName, 'wb') as imageFp:
+                    with open(full_image_name, 'wb') as imageFp:
                         imageFp.write(resp.content)
                         imageFp.flush()
             except Exception as ex:
                 # ex.with_traceback()
                 context1.append_failure(name, src)
-                print("{0}下载失败".format(fullImageName))
+                print("{0}下载失败".format(full_image_name))
                 name = "下载失败"
                 print(ex)
-        return name, relativeImagePath
+        return name, relative_image_path
 
     def handle_span(self, tag, context1: MyContext):
         if eventual_tag(tag):
@@ -429,24 +446,24 @@ class MyParser:
         tbody: Tag = tag.tbody
         # if not tbody:
         #     return self.handle_common(context1, tag)
-        tableStr = ""
-        rowCount = 0
+        table_str = ""
+        row_count = 0
         col_num = 0
         for _tr in tbody.contents:
             row = " | "
             for _td in _tr.contents:
-                if rowCount == 0:
+                if row_count == 0:
                     col_num += 1
                 r = self.handle_common(context1, _td)
                 r = r.replace("\n", "")
                 row += r + " | "
             row += "\n"
-            tableStr += row
-            if rowCount == 0:
+            table_str += row
+            if row_count == 0:
                 separate = "|" + "|".join(["---" for _ in range(0, col_num)]) + "|\n"
-                tableStr += separate
-            rowCount += 1
-        return tableStr
+                table_str += separate
+            row_count += 1
+        return table_str
 
     #
 
