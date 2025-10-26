@@ -15,6 +15,6 @@ def parse_failure_result(result: list):
         fname = t_seg[1:].split(".assert")[0]
         filenameSet.add(fname)
 
-    print(len(filenameSet))
+    print(' count:', len(filenameSet))
     for f in filenameSet:
         print(f)

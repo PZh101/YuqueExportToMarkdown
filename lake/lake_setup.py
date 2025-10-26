@@ -166,7 +166,7 @@ def start_convert(meta, lake_book, output, download_image_of_in):
         print("共导出%s个文件" % global_context.file_count)
 
         print("图片下载错误列表:")
-        print(global_context.failure_image_download_list)
+        print(' list: ',global_context.failure_image_download_list)
         parse_failure_result(global_context.failure_image_download_list)
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
