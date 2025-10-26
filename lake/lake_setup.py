@@ -141,7 +141,7 @@ def convert_to_md(global_context, file_path):
     for root_book in global_context.root_books:
         title = root_book['title']
         create_tree_dir(global_context, "/".join([output_path, title]), root_book)
-    print(">>> markdown 转换完成")
+    print("\n>>> markdown 转换完成")
     # 根据操作系统选择合适的命令打开文件夹
     import platform
     system = platform.system()
