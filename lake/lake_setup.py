@@ -142,7 +142,17 @@ def convert_to_md(global_context, file_path):
         title = root_book['title']
         create_tree_dir(global_context, "/".join([output_path, title]), root_book)
     print(">>> markdown 转换完成")
-    os.system("explorer " + output_path)
+    # 根据操作系统选择合适的命令打开文件夹
+    import platform
+    system = platform.system()
+    if system == 'Windows':
+        os.system("explorer " + output_path)
+    elif system == 'Darwin':  # macOS
+        os.system("open " + output_path)
+    elif system == 'Linux':
+        os.system("xdg-open " + output_path)
+    else:
+        print("未识别的操作系统，无法自动打开输出文件夹")
 
 
 def start_convert(meta, lake_book, output, download_image_of_in):
