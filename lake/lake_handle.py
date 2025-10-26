@@ -349,12 +349,12 @@ class MyParser:
 
     def handle_code(self, tag, context1: MyContext):
         """
-        代码块
+        将ne-code转换为markdown行内代码格式
         :param context1:
         :param tag:
         :return:
         """
-        template = "```{}\n```\n"
+        template = "`{}`"
         if eventual_tag(tag):
             if len(tag) == 0:
                 return template.format("")
