@@ -27,6 +27,7 @@ class GlobalContext:
     file_total = 0
     total = 0
     download_image = True
+    skip_existing = False
     root_path = ""
 
 
@@ -126,7 +127,7 @@ class LakeToMd:
         name = self.target.split("/")[-1]
         last_index = self.target.rindex("/")
         short_target = self.target[:last_index]
-        context = MyContext(filename=name, image_target=short_target, download_image=global_context.download_image)
+        context = MyContext(filename=name, image_target=short_target, download_image=global_context.download_image, skip_existing=global_context.skip_existing)
         res = mp.handle_descent(mp.soup, context)
         self.image_download_failure += context.failure_images
         self.target = remove_invalid_characters(self.target)
@@ -155,7 +156,7 @@ def convert_to_md(global_context, file_path):
         print("未识别的操作系统，无法自动打开输出文件夹")
 
 
-def start_convert(meta, lake_book, output, download_image_of_in):
+def start_convert(meta, lake_book, output, download_image_of_in, skip_existing=False):
     global_context = GlobalContext()
     temp_dir = "temp"
     if lake_book:
@@ -170,6 +171,7 @@ def start_convert(meta, lake_book, output, download_image_of_in):
         load_meta_json(global_context)
         print(">>> meta json解析完成")
         global_context.download_image = download_image_of_in
+        global_context.skip_existing = skip_existing
         abspath = os.path.abspath(output)
         print(">>> 开始进行markdown转换")
         convert_to_md(global_context, abspath)
