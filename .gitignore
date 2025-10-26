@@ -1,0 +1,17 @@
+# cache
+__pycache__/
+__cache__/
+.DS_Store
+venv/
+.venv/
+*.log
+
+# 标准输出文件夹
+input/
+output/
+*.lakebook
+
+# ide
+.vscode
+.idea
+.out
