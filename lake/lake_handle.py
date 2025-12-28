@@ -41,7 +41,7 @@ def remove_invalid_characters(filename):
 
 
 class MyContext:
-    def __init__(self, filename="xxx", download_image=True, image_target=""):
+    def __init__(self, filename="xxx", download_image=True, image_target="", skip_existing=False):
         self.template_queue = queue.Queue()
         self.result = ""
         # 存放图片的目录
@@ -51,6 +51,8 @@ class MyContext:
         self.failure_images = []
         # 下载图片
         self.download_image = download_image
+        # 是否跳过本地已存在的图片文件
+        self.skip_existing = skip_existing
 
     def append_failure(self, name, image_src):
         r = "[{}]{}".format(name, image_src)
@@ -219,19 +221,24 @@ class MyParser:
                 os.makedirs(full_image_path, exist_ok=True)
             try:
                 if context1.download_image:
+                    full_image_name = remove_invalid_characters(full_image_name)
+                    # 检查文件是否已存在，如果存在且设置了跳过则跳过下载
+                    if context1.skip_existing and os.path.exists(full_image_name):
+                        print(f"图片已存在，跳过下载: {resource_name}")
+                        return name, relative_image_path
+
                     time.sleep(0.5)
                     resp = requests.get(src)
                     if resp.status_code != 200:
                         raise Exception("失败链接：{},响应码:{}".format(src, resp.status_code))
-                    full_image_name = remove_invalid_characters(full_image_name)
                     with open(full_image_name, 'wb') as imageFp:
                         imageFp.write(resp.content)
                         imageFp.flush()
             except Exception as ex:
                 # ex.with_traceback()
                 context1.append_failure(name, src)
-                print("{0}下载失败".format(src))
-                name = "下载失败"
+                print("附件 {0} 下载失败".format(src))
+                name = "附件下载失败"
         return name, relative_image_path
 
     def handle_span(self, tag, context1: MyContext):
@@ -349,12 +356,12 @@ class MyParser:
 
     def handle_code(self, tag, context1: MyContext):
         """
-        代码块
+        将ne-code转换为markdown行内代码格式
         :param context1:
         :param tag:
         :return:
         """
-        template = "```{}\n```\n"
+        template = "`{}`"
         if eventual_tag(tag):
             if len(tag) == 0:
                 return template.format("")

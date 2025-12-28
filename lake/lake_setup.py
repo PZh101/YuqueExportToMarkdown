@@ -27,6 +27,7 @@ class GlobalContext:
     file_total = 0
     total = 0
     download_image = True
+    skip_existing = False
     root_path = ""
 
 
@@ -126,7 +127,7 @@ class LakeToMd:
         name = self.target.split("/")[-1]
         last_index = self.target.rindex("/")
         short_target = self.target[:last_index]
-        context = MyContext(filename=name, image_target=short_target, download_image=global_context.download_image)
+        context = MyContext(filename=name, image_target=short_target, download_image=global_context.download_image, skip_existing=global_context.skip_existing)
         res = mp.handle_descent(mp.soup, context)
         self.image_download_failure += context.failure_images
         self.target = remove_invalid_characters(self.target)
@@ -141,11 +142,21 @@ def convert_to_md(global_context, file_path):
     for root_book in global_context.root_books:
         title = root_book['title']
         create_tree_dir(global_context, "/".join([output_path, title]), root_book)
-    print(">>> markdown 转换完成")
-    os.system("explorer " + output_path)
+    print("\n>>> markdown 转换完成")
+    # 根据操作系统选择合适的命令打开文件夹
+    import platform
+    system = platform.system()
+    if system == 'Windows':
+        os.system("explorer " + output_path)
+    elif system == 'Darwin':  # macOS
+        os.system("open " + output_path)
+    elif system == 'Linux':
+        os.system("xdg-open " + output_path)
+    else:
+        print("未识别的操作系统，无法自动打开输出文件夹")
 
 
-def start_convert(meta, lake_book, output, download_image_of_in):
+def start_convert(meta, lake_book, output, download_image_of_in, skip_existing=False):
     global_context = GlobalContext()
     temp_dir = "temp"
     if lake_book:
@@ -160,13 +171,14 @@ def start_convert(meta, lake_book, output, download_image_of_in):
         load_meta_json(global_context)
         print(">>> meta json解析完成")
         global_context.download_image = download_image_of_in
+        global_context.skip_existing = skip_existing
         abspath = os.path.abspath(output)
         print(">>> 开始进行markdown转换")
         convert_to_md(global_context, abspath)
         print("共导出%s个文件" % global_context.file_count)
 
         print("图片下载错误列表:")
-        print(global_context.failure_image_download_list)
+        print(' list: ',global_context.failure_image_download_list)
         parse_failure_result(global_context.failure_image_download_list)
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
